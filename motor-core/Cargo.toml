@@ -1,0 +1,16 @@
+[package]
+name = "motor-core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Selección de componentes ABB para circuitos de motores (60 Hz), compilable a WASM."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,22 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Rust
+motor-core/target
+# Generado por `npm run build:wasm`
+src/wasm/*.wasm
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.claude/
+.DS_Store
+*.sw?

@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-black: #050505;
+  --color-green: #00e87a;
+  --color-green-dim: #00b85f;
+  --color-green-soft: #10291a;
+  --color-surface: #101211;
+  --color-surface2: #171b18;
+  --color-text-base: #f8fafc;
+  --color-text-muted: #a4ada7;
+  --color-border-custom: #26302a;
+
+  --font-body: "Barlow", sans-serif;
+  --font-display: "Barlow Condensed", sans-serif;
+}

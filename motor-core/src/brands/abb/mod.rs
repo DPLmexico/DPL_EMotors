@@ -1,9 +1,11 @@
 //! ABB: tablas de selección de protección de motores (60 Hz) y reglas para armar la lista.
 
 pub mod charts;
+pub mod contactors;
 
 use crate::{Brand, ChartInfo, Item, Motor, OptionDef, Options};
 use charts::MotorRow;
+use contactors::CoilRange;
 
 pub struct Abb;
 
@@ -53,6 +55,21 @@ const EXTRAS: &[OptionDef] = &[
     OptionDef { id: "aux_frontal", label: "Contacto auxiliar frontal", three_phase_only: false },
     OptionDef { id: "seccionador", label: "Seccionador", three_phase_only: false },
 ];
+
+const fn coil(id: &'static str, label: &'static str) -> OptionDef {
+    OptionDef { id, label, three_phase_only: false }
+}
+
+/// Tensiones de control y el rango de bobina AF que las cubre.
+const COILS: &[(OptionDef, CoilRange)] = &[
+    (coil("24", "24 V"), CoilRange::V24_60),
+    (coil("48", "48 V"), CoilRange::V24_60),
+    (coil("120", "120-127 V"), CoilRange::V100_250),
+    (coil("220", "220-240 V"), CoilRange::V100_250),
+    (coil("440", "440-480 V"), CoilRange::V250_500),
+];
+
+const COIL_DEFS: &[OptionDef] = &[COILS[0].0, COILS[1].0, COILS[2].0, COILS[3].0, COILS[4].0];
 
 /// Erratas conocidas de las tablas impresas: (tabla, parte tal como se imprimió, nota).
 const SIC_NOTES: &[(&str, &str, &str)] = &[
@@ -140,7 +157,30 @@ fn bill_of_materials(chart: &ChartInfo, row: &MotorRow, opts: Options) -> Vec<It
         }
     }
 
-    push("Contactor", row.contactor, format!("CONTACTOR ABB {}", row.contactor), per_contactor);
+    let (coil_def, coil_range) = COILS[opts.coil];
+    let mut contactor_note = None;
+    let full = contactors::find(row.contactor).and_then(|c| c.code(coil_range));
+    match full {
+        Some(code) => push(
+            "Contactor",
+            code,
+            format!("CONTACTOR ABB {code} BOBINA {}", coil_range.label()),
+            per_contactor,
+        ),
+        None => {
+            push(
+                "Contactor",
+                row.contactor,
+                format!("CONTACTOR ABB {} BOBINA {}", row.contactor, coil_def.label),
+                per_contactor,
+            );
+            contactor_note = Some(format!(
+                "El catálogo no da código para {} con bobina {}; especificar al pedir.",
+                row.contactor,
+                coil_range.label()
+            ));
+        }
+    }
     push(
         "Contacto auxiliar",
         row.aux_contact,
@@ -192,6 +232,11 @@ fn bill_of_materials(chart: &ChartInfo, row: &MotorRow, opts: Options) -> Vec<It
     if opts.has(DISCONNECTOR) {
         push("Seccionador", row.disconnector, format!("SECCIONADOR ABB {}", row.disconnector), 1);
     }
+    if let Some(note) = contactor_note {
+        if let Some(c) = items.iter_mut().find(|i| i.category == "Contactor") {
+            c.note = Some(note);
+        }
+    }
     items
 }
 
@@ -222,8 +267,21 @@ impl Brand for Abb {
         EXTRAS
     }
 
+    fn coil_voltages(&self) -> &'static [OptionDef] {
+        COIL_DEFS
+    }
+
+    /// Por defecto, el control a la misma tensión que la línea.
+    fn default_coil(&self, chart: usize) -> usize {
+        match CHART_INFO.get(chart).map(|c| c.id) {
+            Some("mono127") => 2,
+            Some("tri440") => 4,
+            _ => 3,
+        }
+    }
+
     fn bill_of_materials(&self, chart: usize, motor: usize, opts: Options) -> Option<Vec<Item>> {
-        if opts.starter != GUARDAMOTOR && opts.starter != TERMOMAGNETICO {
+        if opts.starter != GUARDAMOTOR && opts.starter != TERMOMAGNETICO || opts.coil >= COILS.len() {
             return None;
         }
         let (info, rows) = CHARTS.get(chart)?;
@@ -239,8 +297,13 @@ mod tests {
         CHART_INFO.iter().position(|c| c.id == id).unwrap()
     }
 
+    /// Bobina 220-240 V salvo que se indique otra.
     fn bom(id: &str, motor: usize, starter: usize, extras: u32) -> Vec<Item> {
-        Abb.bill_of_materials(chart(id), motor, Options { starter, extras }).unwrap()
+        bom_coil(id, motor, starter, extras, 3)
+    }
+
+    fn bom_coil(id: &str, motor: usize, starter: usize, extras: u32, coil: usize) -> Vec<Item> {
+        Abb.bill_of_materials(chart(id), motor, Options { starter, extras, coil }).unwrap()
     }
 
     fn parts(items: &[Item]) -> Vec<(&str, u32)> {
@@ -259,7 +322,7 @@ mod tests {
         let items = bom("mono127", 0, GUARDAMOTOR, 0);
         assert_eq!(
             parts(&items),
-            [("MS132-6.3", 1), ("BEA16-4", 1), ("AF09", 1), ("CAL4-11", 1)]
+            [("MS132-6.3", 1), ("BEA16-4", 1), ("AF09-30-10-13", 1), ("CAL4-11", 1)]
         );
         assert_eq!(items[0].description, "GUARDAMOTOR ABB MS132-6.3 (4-6.3 A)");
     }
@@ -271,7 +334,7 @@ mod tests {
             parts(&items),
             [
                 ("S203-K2", 1),
-                ("AF09", 2),
+                ("AF09-30-10-13", 2),
                 ("CAL4-11", 2),
                 ("CA4-10", 2),
                 ("VEM4", 1),
@@ -307,7 +370,46 @@ mod tests {
     }
 
     #[test]
-    fn arranque_invalido() {
-        assert!(Abb.bill_of_materials(0, 0, Options { starter: 7, extras: 0 }).is_none());
+    fn arranque_o_bobina_invalidos() {
+        assert!(Abb.bill_of_materials(0, 0, Options { starter: 7, extras: 0, coil: 0 }).is_none());
+        assert!(Abb.bill_of_materials(0, 0, Options { starter: 0, extras: 0, coil: 99 }).is_none());
+    }
+
+    fn contactor(items: &[Item]) -> &Item {
+        items.iter().find(|i| i.category == "Contactor").unwrap()
+    }
+
+    #[test]
+    fn bobina_por_rango() {
+        let c = contactor(&bom_coil("mono127", 0, GUARDAMOTOR, 0, 0)).clone();
+        assert_eq!(c.part, "AF09Z-30-10-21");
+        assert_eq!(c.description, "CONTACTOR ABB AF09Z-30-10-21 BOBINA 24-60 V");
+        assert_eq!(contactor(&bom_coil("mono127", 0, GUARDAMOTOR, 0, 4)).part, "AF09-30-10-14");
+        let last = CHARTS[chart("tri220")].1.len() - 1;
+        assert_eq!(contactor(&bom_coil("tri220", last, GUARDAMOTOR, 0, 2)).part, "AF580-30-11-13");
+    }
+
+    #[test]
+    fn bobina_sin_codigo_lleva_nota() {
+        let last = CHARTS[chart("tri220")].1.len() - 1;
+        let c = contactor(&bom_coil("tri220", last, GUARDAMOTOR, 0, 0)).clone();
+        assert_eq!(c.part, "AF580");
+        assert!(c.note.is_some());
+        let rows = CHARTS[chart("tri440")].1;
+        let af40 = rows.iter().position(|r| r.contactor == "AF40").unwrap();
+        assert!(contactor(&bom("tri440", af40, GUARDAMOTOR, 0)).note.is_some());
+    }
+
+    #[test]
+    fn todos_los_contactores_de_las_tablas() {
+        let missing: Vec<_> = CHARTS
+            .iter()
+            .flat_map(|(_, rows)| rows.iter().map(|r| r.contactor))
+            .filter(|f| contactors::find(f).is_none())
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        // Pendiente: AF40 no viene en la hoja de catálogo escaneada.
+        assert_eq!(missing, ["AF40"]);
     }
 }

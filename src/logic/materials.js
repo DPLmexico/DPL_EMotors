@@ -2,7 +2,7 @@
  * Lista de materiales: consolidación, JSON para el cotizador y PDF.
  *
  * Una entrada de la lista (`entry`) es un motor agregado por el usuario:
- *   { id, label, brand, chart, motor, starter, extras: [labels], count, items: [{ part, description, unit, qty, note, category }] }
+ *   { id, label, brand, chart, motor, starterLabel, coilLabel, extras: [labels], count, items: [{ part, description, unit, qty, note, category }] }
  * `items[].qty` es por motor; la cantidad total se multiplica por `count`.
  */
 
@@ -186,7 +186,7 @@ export async function exportPDF(entries, proveedor) {
     doc.setTextColor(90, 90, 90);
     const meta = [
       `${e.brandName} · ${e.chartLabel} · ${motorSummary(e)}`,
-      `Arranque: ${e.starterLabel}${e.extras.length ? ` · ${e.extras.join(", ")}` : ""}`,
+      `Arranque: ${e.starterLabel}${e.coilLabel ? ` · Control ${e.coilLabel}` : ""}${e.extras.length ? ` · ${e.extras.join(", ")}` : ""}`,
     ];
     doc.text(meta, MARGIN, y);
     y += meta.length * 4 + 3;
@@ -221,7 +221,7 @@ export async function exportPDF(entries, proveedor) {
   }
   const disclaimer = doc.splitTextToSize(
     "Selección basada en las tablas del fabricante para motores de 60 Hz con corrientes nominales típicas. " +
-      "Especifique la tensión de bobina de los contactores. Verifique contra los datos de placa del motor y la " +
+      "Verifique contra los datos de placa del motor y la " +
       "normativa vigente (NOM-001-SEDE) antes de comprar o instalar.",
     PAGE_W - 2 * MARGIN,
   );

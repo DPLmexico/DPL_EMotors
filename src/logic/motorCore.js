@@ -12,10 +12,10 @@ export async function loadMotorCore() {
   const read = (ptr) => JSON.parse(decoder.decode(new Uint8Array(memory.buffer, ptr, output_len())));
 
   return {
-    /** [{ id, name, starters, extras, charts: [{ id, label, voltage, phases, motors }] }] */
+    /** [{ id, name, starters, extras, coils, charts: [{ id, label, voltage, phases, defaultCoil, motors }] }] */
     brands: read(catalog()),
-    /** Lista de componentes para (marca, tabla, motor, arranque, bits de extras). */
-    select: (brand, chart, motor, starter, extras) =>
-      read(select(brand, chart, motor, starter, extras)),
+    /** Lista de componentes para (marca, tabla, motor, arranque, bits de extras, bobina). */
+    select: (brand, chart, motor, starter, extras, coil) =>
+      read(select(brand, chart, motor, starter, extras, coil)),
   };
 }

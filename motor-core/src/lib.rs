@@ -47,6 +47,8 @@ pub struct Options {
     pub starter: usize,
     /// Bit `i` = extra `i` de `Brand::extras()` activado.
     pub extras: u32,
+    /// Índice dentro de `Brand::coil_voltages()` (tensión de control de la bobina).
+    pub coil: usize,
 }
 
 impl Options {
@@ -72,6 +74,13 @@ pub trait Brand: Sync {
     fn motors(&self, chart: usize) -> Vec<Motor>;
     fn starters(&self) -> &'static [OptionDef];
     fn extras(&self) -> &'static [OptionDef];
+    /// Tensiones de control que ofrece la marca; cada una traduce la bobina a su manera
+    /// (ABB usa bobinas de rango amplio, otras marcas un código por tensión fija).
+    fn coil_voltages(&self) -> &'static [OptionDef];
+    /// Tensión de control sugerida para una tabla (índice en `coil_voltages`).
+    fn default_coil(&self, _chart: usize) -> usize {
+        0
+    }
     /// `None` si la tabla o la potencia no existen.
     fn bill_of_materials(&self, chart: usize, motor: usize, opts: Options) -> Option<Vec<Item>>;
 }
@@ -126,6 +135,8 @@ pub fn catalog_to_json() -> String {
         json_options(&mut out, brand.starters());
         out.push_str(r#","extras":"#);
         json_options(&mut out, brand.extras());
+        out.push_str(r#","coils":"#);
+        json_options(&mut out, brand.coil_voltages());
         out.push_str(r#","charts":["#);
         for (c, chart) in brand.charts().iter().enumerate() {
             if c > 0 {
@@ -137,7 +148,12 @@ pub fn catalog_to_json() -> String {
             json_str(&mut out, chart.label);
             out.push_str(r#","voltage":"#);
             json_str(&mut out, chart.voltage);
-            let _ = write!(out, r#","phases":{},"motors":["#, chart.phases);
+            let _ = write!(
+                out,
+                r#","phases":{},"defaultCoil":{},"motors":["#,
+                chart.phases,
+                brand.default_coil(c)
+            );
             for (m, motor) in brand.motors(c).iter().enumerate() {
                 if m > 0 {
                     out.push(',');
@@ -208,12 +224,19 @@ pub extern "C" fn catalog() -> *const u8 {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn select(brand: u32, chart: u32, motor: u32, starter: u32, extras: u32) -> *const u8 {
+pub extern "C" fn select(
+    brand: u32,
+    chart: u32,
+    motor: u32,
+    starter: u32,
+    extras: u32,
+    coil: u32,
+) -> *const u8 {
     emit(selection_to_json(
         brand as usize,
         chart as usize,
         motor as usize,
-        Options { starter: starter as usize, extras },
+        Options { starter: starter as usize, extras, coil: coil as usize },
     ))
 }
 
@@ -230,7 +253,7 @@ mod tests {
 
     #[test]
     fn seleccion_invalida() {
-        let opts = Options { starter: 0, extras: 0 };
+        let opts = Options { starter: 0, extras: 0, coil: 0 };
         assert_eq!(selection_to_json(99, 0, 0, opts), r#"{"error":"Marca inexistente"}"#);
         assert_eq!(
             selection_to_json(0, 99, 0, opts),

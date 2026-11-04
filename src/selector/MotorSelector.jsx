@@ -39,6 +39,7 @@ export default function MotorSelector({ core }) {
   const [motorIdx, setMotorIdx] = useState(0);
   const [starterIdx, setStarterIdx] = useState(0);
   const [extrasMask, setExtrasMask] = useState(0);
+  const [coilIdx, setCoilIdx] = useState(brand.charts[0].defaultCoil);
   const [label, setLabel] = useState("");
   const [count, setCount] = useState(1);
   const [edits, setEdits] = useState({ key: "", off: {}, qty: {} });
@@ -67,6 +68,7 @@ export default function MotorSelector({ core }) {
     setVoltage(target.voltage);
     setPhases(target.phases);
     setMotorIdx(idx === -1 ? target.motors.length - 1 : idx);
+    setCoilIdx(target.defaultCoil);
     if (b !== brandIdx) {
       setStarterIdx(0);
       setExtrasMask(0);
@@ -80,12 +82,12 @@ export default function MotorSelector({ core }) {
   );
 
   const result = useMemo(
-    () => core.select(brandIdx, chartIdx, motorIdx, starterIdx, effectiveMask),
-    [core, brandIdx, chartIdx, motorIdx, starterIdx, effectiveMask],
+    () => core.select(brandIdx, chartIdx, motorIdx, starterIdx, effectiveMask, coilIdx),
+    [core, brandIdx, chartIdx, motorIdx, starterIdx, effectiveMask, coilIdx],
   );
 
   // Ediciones del usuario (quitar partidas / cambiar cantidades) para la selección actual.
-  const selKey = `${brandIdx}|${chartIdx}|${motorIdx}|${starterIdx}|${effectiveMask}`;
+  const selKey = `${brandIdx}|${chartIdx}|${motorIdx}|${starterIdx}|${effectiveMask}|${coilIdx}`;
   const cur = edits.key === selKey ? edits : { key: selKey, off: {}, qty: {} };
   const items = (result.items ?? []).map((it, i) => ({
     ...it,
@@ -109,6 +111,7 @@ export default function MotorSelector({ core }) {
       chartLabel: chart.label,
       motor,
       starterLabel: brand.starters[starterIdx].label,
+      coilLabel: brand.coils[coilIdx]?.label ?? "",
       extras: brand.extras.filter((_, i) => effectiveMask & (1 << i)).map((x) => x.label),
       items: selectedItems.map(({ category, part, description, unit, qty, note }) => ({
         category, part, description, unit, qty, note,
@@ -193,6 +196,13 @@ export default function MotorSelector({ core }) {
                 </ChoiceButton>
               ))}
             </div>
+            {brand.coils.length > 0 && (
+              <div className="md:w-1/2 md:pr-1">
+                <SelectField label="Voltaje de control (bobina del contactor)" value={coilIdx} onChange={(v) => setCoilIdx(Number(v))}>
+                  {brand.coils.map((c, i) => <option key={c.id} value={i}>{c.label}</option>)}
+                </SelectField>
+              </div>
+            )}
             <div className="flex flex-wrap gap-x-5 gap-y-2">
               {brand.extras.map((x, i) => {
                 const disabled = x.threePhaseOnly && phases !== 3;
@@ -400,7 +410,7 @@ function MaterialsPanel({ entries, proveedor, setProveedor, status, onCount, onR
                   #{String(i + 1).padStart(2, "0")} {e.label || "Motor"} — {e.brandName} · {e.chartLabel}
                 </div>
                 <div className="mt-1 text-xs text-text-muted">
-                  {motorSummary(e)} · {e.starterLabel}{e.extras.length > 0 && ` · ${e.extras.join(", ")}`}
+                  {motorSummary(e)} · {e.starterLabel}{e.coilLabel && ` · Control ${e.coilLabel}`}{e.extras.length > 0 && ` · ${e.extras.join(", ")}`}
                 </div>
                 <div className="mt-1 text-xs text-text-base">{e.items.map((it) => `${it.qty}× ${it.part}`).join("  ·  ")}</div>
               </div>

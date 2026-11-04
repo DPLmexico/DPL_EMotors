@@ -47,7 +47,8 @@ src/selector/               UI
 
 1. Crear `motor-core/src/brands/siemens/mod.rs` con sus tablas.
 2. Implementar `crate::Brand`. Cada marca define sus tablas (tensión/fases), sus tipos de
-   arranque (`starters`), sus opciones extra (`extras`) y su propia `bill_of_materials`, así que
+   arranque (`starters`), sus opciones extra (`extras`), sus tensiones de bobina
+   (`coil_voltages`) y su propia `bill_of_materials`, así que
    las reglas pueden ser completamente distintas a las de ABB.
 3. Registrarla en `BRANDS` (`motor-core/src/brands/mod.rs`).
 

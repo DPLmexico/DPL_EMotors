@@ -14,3 +14,33 @@
   --font-body: "Barlow", sans-serif;
   --font-display: "Barlow Condensed", sans-serif;
 }
+
+@theme {
+  --color-page: #050505;
+}
+
+/* Modo "regla de cartón": misma UI con paleta de cartón impreso. Tailwind 4 resuelve los
+   colores con variables CSS, así que redefinirlas aquí re-tematiza todo lo que esté adentro. */
+.theme-carton {
+  --color-page: #e9e3d5;
+  --color-green: #007a47;
+  --color-green-dim: #00663b;
+  --color-green-soft: #cdeedd;
+  --color-surface: #fffdf8;
+  --color-surface2: #f4efe3;
+  --color-text-base: #151515;
+  --color-text-muted: #5b574e;
+  --color-border-custom: #cfc5b0;
+}
+.theme-carton .logo-dpl {
+  filter: brightness(0);
+}
+
+@keyframes voltear {
+  from { transform: perspective(900px) rotateY(80deg); opacity: 0.2; }
+  to { transform: perspective(900px) rotateY(0); opacity: 1; }
+}
+@keyframes voltear-v {
+  from { transform: perspective(900px) rotateX(80deg); opacity: 0.2; }
+  to { transform: perspective(900px) rotateX(0); opacity: 1; }
+}

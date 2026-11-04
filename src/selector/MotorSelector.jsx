@@ -6,6 +6,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import SlideRule from "./SlideRule";
 import { buildClipboardPayload, consolidate, copyText, exportCSV, exportCSVDetail, exportPDF, motorSummary } from "../logic/materials";
 
 // ─── Constantes de configuración ────────────────────────────────────────────
@@ -15,6 +16,7 @@ const GITHUB_REPO_URL = "https://github.com/DPLmexico/DPL_EMotors";
 const STORAGE_ENTRIES = "dpl-emotors:entries";
 const STORAGE_PROVEEDOR = "dpl-emotors:proveedor";
 const STORAGE_VIEW = "dpl-emotors:view";
+const STORAGE_MODE = "dpl-emotors:mode";
 
 function loadStored(key, fallback) {
   try {
@@ -56,6 +58,10 @@ export default function MotorSelector({ core }) {
   // Vista de componentes: "lista" (del motor elegido) o "tabla" (tabla de selección completa).
   const [view, setView] = useState(() => loadStored(STORAGE_VIEW, "lista"));
   useEffect(() => localStorage.setItem(STORAGE_VIEW, JSON.stringify(view)), [view]);
+
+  // Modo de página: "selector" (paneles) o "regla" (regla de cartón deslizable).
+  const [mode, setMode] = useState(() => loadStored(STORAGE_MODE, "selector"));
+  useEffect(() => localStorage.setItem(STORAGE_MODE, JSON.stringify(mode)), [mode]);
 
   // ── Tabla activa ──
   const voltages = [...new Set(brand.charts.map((c) => c.voltage))];
@@ -150,16 +156,115 @@ export default function MotorSelector({ core }) {
   const notes = items.filter((it) => it.included && it.note);
 
   const table = useMemo(
-    () => (view === "tabla" ? core.table(brandIdx, chartIdx, starterIdx, effectiveMask, coilIdx) : null),
-    [core, view, brandIdx, chartIdx, starterIdx, effectiveMask, coilIdx],
+    () =>
+      view === "tabla" || mode === "regla"
+        ? core.table(brandIdx, chartIdx, starterIdx, effectiveMask, coilIdx)
+        : null,
+    [core, view, mode, brandIdx, chartIdx, starterIdx, effectiveMask, coilIdx],
   );
 
+  const extrasChips = brand.extras.map((x, i) => {
+    const disabled = x.threePhaseOnly && phases !== 3;
+    return (
+      <ToggleChip
+        key={x.id}
+        active={!disabled && Boolean(extrasMask & (1 << i))}
+        disabled={disabled}
+        title={disabled ? "Solo trifásico" : ""}
+        onClick={() => setExtrasMask((m) => m ^ (1 << i))}
+      >
+        {x.label}
+      </ToggleChip>
+    );
+  });
+
+  const coilSelect = brand.coils.length > 0 && (
+    <SelectField label="Voltaje de control (bobina)" value={coilIdx} onChange={(v) => setCoilIdx(Number(v))}>
+      {brand.coils.map((c, i) => <option key={c.id} value={i}>{c.label}</option>)}
+    </SelectField>
+  );
+
+  const addRow = (
+    <>
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-40 flex-1">
+          <TextInput label="Identificador (opcional)" value={label} onChange={setLabel} placeholder="p. ej. Bomba de agua 1" />
+        </div>
+        <div className="w-24">
+          <NumberInput label="Motores" value={count} onChange={(v) => setCount(Math.max(1, Math.round(v) || 1))} min={1} step={1} unit="×" />
+        </div>
+        <button
+          onClick={addToList}
+          disabled={!selectedItems.length}
+          className="h-[34px] rounded-lg border border-green bg-green/10 px-4 font-display text-sm font-semibold uppercase tracking-wider text-green transition hover:bg-green/20 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          + Agregar a la lista
+        </button>
+      </div>
+      {status?.where === "add" && (
+        <p className="mt-2 font-display text-xs uppercase tracking-widest text-green">{status.msg}</p>
+      )}
+    </>
+  );
+
+  const nextStarter = (starterIdx + 1) % brand.starters.length;
+
   return (
-    <div className="min-h-screen bg-black p-3 font-body text-text-base md:p-4">
+    <div className={`min-h-screen bg-page p-3 font-body text-text-base md:p-4 ${mode === "regla" ? "theme-carton" : ""}`}>
       <div className="mx-auto max-w-6xl space-y-3">
 
-        <Header />
+        <Header mode={mode} onToggleMode={() => setMode((m) => (m === "regla" ? "selector" : "regla"))} />
 
+        {mode === "regla" ? (
+          <>
+            {/* Cartones: uno por tensión/fases */}
+            <div className="flex flex-wrap items-center gap-2">
+              {core.brands.length > 1 && (
+                <select
+                  className="rounded-lg border-2 border-neutral-800 bg-surface px-2 py-1 font-display text-sm font-bold"
+                  value={brandIdx}
+                  onChange={(e) => changeChart(Number(e.target.value), voltage, phases)}
+                >
+                  {core.brands.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
+                </select>
+              )}
+              {brand.charts.map((c) => {
+                const active = c.voltage === voltage && c.phases === phases;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => changeChart(brandIdx, c.voltage, c.phases)}
+                    className={`rounded-t-lg border-2 border-b-0 border-neutral-800 px-3 py-1.5 font-display text-sm font-bold uppercase tracking-wide transition
+                      ${active ? "bg-green text-white" : "bg-surface text-text-base hover:bg-surface2"}`}
+                  >
+                    {c.voltage} {c.phases === 1 ? "1φ" : "3φ"}
+                  </button>
+                );
+              })}
+            </div>
+
+            <SlideRule
+              chart={chart}
+              table={table}
+              index={motorIdx}
+              onIndex={setMotorIdx}
+              sideLabel={`${brand.name} · ${chart.label} · ${brand.starters[starterIdx].label}`}
+              flipKey={`${starterIdx}|${chartIdx}`}
+              onFlip={brand.starters.length > 1 ? () => setStarterIdx(nextStarter) : null}
+              flipLabel={brand.starters[nextStarter].label.split(" ")[0]}
+              notes={notes}
+            />
+
+            <div className="grid gap-3 rounded-xl border border-border-custom bg-surface p-4 md:grid-cols-[14rem_minmax(0,1fr)]">
+              {coilSelect}
+              <div>
+                <FieldLabel>Extras</FieldLabel>
+                <div className="flex flex-wrap gap-1.5">{extrasChips}</div>
+              </div>
+              <div className="md:col-span-2">{addRow}</div>
+            </div>
+          </>
+        ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[20rem_minmax(0,1fr)]">
 
           {/* Panel de selección */}
@@ -207,27 +312,8 @@ export default function MotorSelector({ core }) {
                 </ChoiceButton>
               ))}
             </div>
-            {brand.coils.length > 0 && (
-              <SelectField label="Voltaje de control (bobina)" value={coilIdx} onChange={(v) => setCoilIdx(Number(v))}>
-                {brand.coils.map((c, i) => <option key={c.id} value={i}>{c.label}</option>)}
-              </SelectField>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {brand.extras.map((x, i) => {
-                const disabled = x.threePhaseOnly && phases !== 3;
-                return (
-                  <ToggleChip
-                    key={x.id}
-                    active={!disabled && Boolean(extrasMask & (1 << i))}
-                    disabled={disabled}
-                    title={disabled ? "Solo trifásico" : ""}
-                    onClick={() => setExtrasMask((m) => m ^ (1 << i))}
-                  >
-                    {x.label}
-                  </ToggleChip>
-                );
-              })}
-            </div>
+            {coilSelect}
+            <div className="flex flex-wrap gap-1.5">{extrasChips}</div>
           </div>
 
           {/* Resultado */}
@@ -292,26 +378,10 @@ export default function MotorSelector({ core }) {
               </div>
             )}
 
-            <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-border-custom pt-3">
-              <div className="min-w-40 flex-1">
-                <TextInput label="Identificador (opcional)" value={label} onChange={setLabel} placeholder="p. ej. Bomba de agua 1" />
-              </div>
-              <div className="w-24">
-                <NumberInput label="Motores" value={count} onChange={(v) => setCount(Math.max(1, Math.round(v) || 1))} min={1} step={1} unit="×" />
-              </div>
-              <button
-                onClick={addToList}
-                disabled={!selectedItems.length}
-                className="h-[34px] rounded-lg border border-green bg-green/10 px-4 font-display text-sm font-semibold uppercase tracking-wider text-green transition hover:bg-green/20 disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                + Agregar a la lista
-              </button>
-            </div>
-            {status?.where === "add" && (
-              <p className="mt-2 font-display text-xs uppercase tracking-widest text-green">{status.msg}</p>
-            )}
+            <div className="mt-3 border-t border-border-custom pt-3">{addRow}</div>
           </div>
         </div>
+        )}
 
         {/* Lista de materiales */}
         {entries.length > 0 && (
@@ -338,21 +408,36 @@ export default function MotorSelector({ core }) {
 
 // ─── Header / Footer ──────────────────────────────────────────────────────────
 
-function Header() {
+function Header({ mode, onToggleMode }) {
+  const regla = mode === "regla";
   return (
     <header className="flex items-center gap-4 rounded-xl border border-border-custom bg-surface px-4 py-3">
       <a href={MAIN_SITE_URL} aria-label="Volver a DPL México" className="shrink-0">
-        <img src={`${import.meta.env.BASE_URL}dpl-logo.png`} alt="DPL México" className="h-6 w-auto" />
+        <img src={`${import.meta.env.BASE_URL}dpl-logo.png`} alt="DPL México" className="logo-dpl h-6 w-auto" />
       </a>
       <div className="min-w-0 flex-1">
         <h1 className="font-display text-lg font-bold uppercase leading-tight tracking-wide text-green md:text-xl">
-          Selector de Componentes para Motores
+          {regla ? "Regla de Selección de Arrancadores" : "Selector de Componentes para Motores"}
         </h1>
         <p className="hidden text-xs text-text-muted sm:block">Arrancadores y protecciones de motores 60 Hz — v1.0</p>
       </div>
+      <button
+        role="switch"
+        aria-checked={regla}
+        onClick={onToggleMode}
+        className="flex shrink-0 items-center gap-2 font-display text-xs font-semibold uppercase tracking-wider text-text-muted transition hover:text-text-base"
+        title="Cambiar entre el selector y la regla de cartón"
+      >
+        <span className="hidden sm:inline">Modo regla</span>
+        <span className={`relative h-5 w-9 rounded-full border transition ${regla ? "border-green bg-green" : "border-border-custom bg-surface2"}`}>
+          <span
+            className={`absolute top-0.5 size-3.5 rounded-full transition-all ${regla ? "left-[18px] bg-white" : "left-0.5 bg-text-muted"}`}
+          />
+        </span>
+      </button>
       <a
         href={MAIN_SITE_URL}
-        className="hidden shrink-0 font-display text-xs font-semibold uppercase tracking-widest text-text-muted transition hover:text-green sm:block"
+        className="hidden shrink-0 font-display text-xs font-semibold uppercase tracking-widest text-text-muted transition hover:text-green md:block"
       >
         ← Volver al sitio
       </a>
@@ -411,7 +496,7 @@ function ComponentRow({ item, onToggle, onQty }) {
         value={item.qty}
         disabled={!item.included}
         onChange={(e) => onQty(Math.round(Number(e.target.value)) || 0)}
-        className="w-12 shrink-0 rounded-md border border-border-custom bg-black/30 px-1.5 py-1 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none text-sm text-text-base outline-none transition focus:border-green-dim focus:ring-2 focus:ring-green-soft"
+        className="w-12 shrink-0 rounded-md border border-border-custom bg-surface2 px-1.5 py-1 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none text-sm text-text-base outline-none transition focus:border-green-dim focus:ring-2 focus:ring-green-soft"
         aria-label={`Cantidad de ${item.part}`}
       />
       <span className="w-7 shrink-0 text-[10px] uppercase text-text-muted">{item.unit}</span>
@@ -533,7 +618,7 @@ function MaterialsPanel({ entries, proveedor, setProveedor, status, onCount, onR
                   step={1}
                   value={e.count}
                   onChange={(ev) => onCount(e.id, Math.max(1, Math.round(Number(ev.target.value)) || 1))}
-                  className="w-14 rounded-lg border border-border-custom bg-black/30 p-1 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none text-sm text-text-base outline-none focus:border-green-dim"
+                  className="w-14 rounded-lg border border-border-custom bg-surface2 p-1 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none text-sm text-text-base outline-none focus:border-green-dim"
                   aria-label="Cantidad de motores"
                 />
                 <button

@@ -5,7 +5,7 @@
  * con varios motores y la exporta a PDF o la copia como JSON para el cotizador.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { buildClipboardPayload, consolidate, copyText, exportCSV, exportCSVDetail, exportPDF, motorSummary } from "../logic/materials";
 
 // ─── Constantes de configuración ────────────────────────────────────────────
@@ -14,6 +14,7 @@ const MAIN_SITE_URL = "https://www.dplmexico.com";
 const GITHUB_REPO_URL = "https://github.com/DPLmexico/DPL_EMotors";
 const STORAGE_ENTRIES = "dpl-emotors:entries";
 const STORAGE_PROVEEDOR = "dpl-emotors:proveedor";
+const STORAGE_VIEW = "dpl-emotors:view";
 
 function loadStored(key, fallback) {
   try {
@@ -51,6 +52,10 @@ export default function MotorSelector({ core }) {
 
   useEffect(() => localStorage.setItem(STORAGE_ENTRIES, JSON.stringify(entries)), [entries]);
   useEffect(() => localStorage.setItem(STORAGE_PROVEEDOR, JSON.stringify(proveedor)), [proveedor]);
+
+  // Vista de componentes: "lista" (del motor elegido) o "tabla" (tabla de selección completa).
+  const [view, setView] = useState(() => loadStored(STORAGE_VIEW, "lista"));
+  useEffect(() => localStorage.setItem(STORAGE_VIEW, JSON.stringify(view)), [view]);
 
   // ── Tabla activa ──
   const voltages = [...new Set(brand.charts.map((c) => c.voltage))];
@@ -144,6 +149,11 @@ export default function MotorSelector({ core }) {
 
   const notes = items.filter((it) => it.included && it.note);
 
+  const table = useMemo(
+    () => (view === "tabla" ? core.table(brandIdx, chartIdx, starterIdx, effectiveMask, coilIdx) : null),
+    [core, view, brandIdx, chartIdx, starterIdx, effectiveMask, coilIdx],
+  );
+
   return (
     <div className="min-h-screen bg-black p-3 font-body text-text-base md:p-4">
       <div className="mx-auto max-w-6xl space-y-3">
@@ -222,10 +232,26 @@ export default function MotorSelector({ core }) {
 
           {/* Resultado */}
           <div className="flex flex-col rounded-xl border border-border-custom bg-surface p-4">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border-custom pb-2">
-              <span className="font-display text-xs font-bold uppercase tracking-widest text-text-muted">
-                Componentes — {brand.name} · {chart.label}
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border-custom pb-2">
+              <div className="flex items-center gap-3">
+                <div className="flex rounded-lg border border-border-custom p-0.5" role="tablist">
+                  {[["lista", "Lista"], ["tabla", "Tabla"]].map(([v, l]) => (
+                    <button
+                      key={v}
+                      role="tab"
+                      aria-selected={view === v}
+                      onClick={() => setView(v)}
+                      className={`rounded-md px-3 py-1 font-display text-xs font-semibold uppercase tracking-wider transition
+                        ${view === v ? "bg-green/15 text-green" : "text-text-muted hover:text-text-base"}`}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <span className="font-display text-xs font-bold uppercase tracking-widest text-text-muted">
+                  {brand.name} · {chart.label}
+                </span>
+              </div>
               {motor && (
                 <span className="font-display text-lg font-bold leading-none text-green">
                   {motor.hp}<Unit>HP</Unit> · {motor.kw}<Unit>kW</Unit> · {motor.amps}<Unit>A</Unit>
@@ -235,16 +261,30 @@ export default function MotorSelector({ core }) {
 
             <ErrorCard error={result.error} />
 
-            <div className="mt-1 flex-1 divide-y divide-border-custom/60">
-              {items.map((it, i) => (
-                <ComponentRow
-                  key={`${selKey}-${i}`}
-                  item={it}
-                  onToggle={() => toggleItem(i)}
-                  onQty={(q) => setItemQty(i, q)}
-                />
-              ))}
-            </div>
+            {view === "lista" ? (
+              <div className="mt-1 flex-1 divide-y divide-border-custom/60">
+                {items.map((it, i) => (
+                  <ComponentRow
+                    key={`${selKey}-${i}`}
+                    item={it}
+                    onToggle={() => toggleItem(i)}
+                    onQty={(q) => setItemQty(i, q)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <SelectionSheet
+                table={table}
+                chart={chart}
+                selected={motorIdx}
+                onSelect={setMotorIdx}
+                subtitle={[
+                  brand.starters[starterIdx].label,
+                  brand.coils[coilIdx] && `Control ${brand.coils[coilIdx].label}`,
+                  ...brand.extras.filter((_, i) => effectiveMask & (1 << i)).map((x) => x.label),
+                ].filter(Boolean).join(" · ")}
+              />
+            )}
 
             {notes.length > 0 && (
               <div className="mt-2 space-y-0.5 rounded border border-amber-500/40 bg-amber-900/20 px-2 py-1.5 text-xs text-amber-300">
@@ -375,6 +415,74 @@ function ComponentRow({ item, onToggle, onQty }) {
         aria-label={`Cantidad de ${item.part}`}
       />
       <span className="w-7 shrink-0 text-[10px] uppercase text-text-muted">{item.unit}</span>
+    </div>
+  );
+}
+
+// ─── Tabla de selección (estilo hoja de proveedor) ────────────────────────────
+
+function SelectionSheet({ table, chart, selected, onSelect, subtitle }) {
+  const selectedRef = useRef(null);
+  useEffect(() => {
+    selectedRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [selected, chart]);
+
+  if (!table || table.error) return <ErrorCard error={table?.error ?? "Sin datos"} />;
+
+  const th = "border border-neutral-300 bg-neutral-100 px-2 py-1.5 text-left align-bottom font-display text-[11px] font-bold uppercase leading-tight tracking-wide";
+  const td = "border border-neutral-300 px-2 py-1 whitespace-nowrap";
+  return (
+    <div className="mt-2 flex min-h-0 flex-1 flex-col rounded-lg bg-white text-neutral-900">
+      <div className="flex items-center gap-3 border-b-2 border-neutral-900 px-3 py-2">
+        <img src={`${import.meta.env.BASE_URL}dpl-logo.png`} alt="DPL México" className="h-5 w-auto brightness-0" />
+        <div className="min-w-0">
+          <div className="font-display text-sm font-bold uppercase leading-tight tracking-wide">
+            Tabla de selección — Motores {chart.label} · 60 Hz
+          </div>
+          <div className="truncate text-[11px] text-neutral-600">{subtitle}</div>
+        </div>
+      </div>
+      <div className="max-h-[calc(100vh-17rem)] min-h-64 overflow-auto">
+        <table className="w-full border-collapse text-xs">
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <th className={`${th} sticky left-0 z-10`}>HP</th>
+              <th className={th}>kW</th>
+              <th className={th}>A</th>
+              {table.columns.map((c) => <th key={c} className={`${th} min-w-24`}>{c}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {chart.motors.map((m, r) => {
+              const isSel = r === selected;
+              return (
+                <tr
+                  key={r}
+                  ref={isSel ? selectedRef : null}
+                  onClick={() => onSelect(r)}
+                  aria-selected={isSel}
+                  className={`cursor-pointer ${isSel ? "bg-emerald-100 font-semibold" : r % 2 ? "bg-neutral-50 hover:bg-emerald-50" : "bg-white hover:bg-emerald-50"}`}
+                >
+                  <td className={`${td} sticky left-0 font-display font-bold ${isSel ? "bg-emerald-200 shadow-[inset_4px_0_0_#059669]" : "bg-inherit"}`}>
+                    {m.hp}
+                  </td>
+                  <td className={td}>{m.kw}</td>
+                  <td className={td}>{m.amps}</td>
+                  {table.rows[r].map((cell, c) => (
+                    <td key={c} className={`${td} font-display`} title={cell?.note ?? undefined}>
+                      {cell ? cell.text : <span className="text-neutral-400">—</span>}
+                      {cell?.note && <span className="ml-1 text-amber-600">⚠</span>}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="border-t border-neutral-300 px-3 py-1 text-[10px] text-neutral-500">
+        Haz clic en una fila para seleccionar el motor. ⚠ = ver nota.
+      </div>
     </div>
   );
 }

@@ -67,6 +67,21 @@ pub struct Item {
     pub note: Option<String>,
 }
 
+/// Celda de la tabla de selección: números de catálogo de una categoría para un motor.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Cell {
+    pub text: String,
+    pub note: Option<String>,
+}
+
+/// Tabla de selección clásica: una fila por motor, una columna por categoría de componente.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SelectionTable {
+    pub columns: Vec<&'static str>,
+    /// `rows[motor][columna]`; `None` = el componente no aplica a ese tamaño ("—").
+    pub rows: Vec<Vec<Option<Cell>>>,
+}
+
 pub trait Brand: Sync {
     fn id(&self) -> &'static str;
     fn name(&self) -> &'static str;
@@ -83,6 +98,57 @@ pub trait Brand: Sync {
     }
     /// `None` si la tabla o la potencia no existen.
     fn bill_of_materials(&self, chart: usize, motor: usize, opts: Options) -> Option<Vec<Item>>;
+
+    /// Tabla de selección de toda una tabla (tensión/fases) con las opciones dadas. Por
+    /// defecto se arma con `bill_of_materials` de cada motor, así que sirve para cualquier
+    /// marca; una marca puede sobrescribirla si su catálogo se presenta distinto.
+    fn selection_table(&self, chart: usize, opts: Options) -> Option<SelectionTable> {
+        let motors = self.motors(chart).len();
+        if motors == 0 {
+            return None;
+        }
+        let boms = (0..motors)
+            .map(|m| self.bill_of_materials(chart, m, opts))
+            .collect::<Option<Vec<_>>>()?;
+        // Columnas en el orden de la lista; una categoría que solo aparece en algunos tamaños
+        // (p. ej. unidad de disparo) se inserta después de la que la precede en su lista.
+        let mut columns: Vec<&'static str> = Vec::new();
+        for bom in &boms {
+            let mut at = 0;
+            for item in bom {
+                match columns.iter().position(|c| *c == item.category) {
+                    Some(i) => at = i + 1,
+                    None => {
+                        columns.insert(at, item.category);
+                        at += 1;
+                    }
+                }
+            }
+        }
+        let rows = boms
+            .iter()
+            .map(|bom| {
+                columns
+                    .iter()
+                    .map(|col| {
+                        let items: Vec<_> = bom.iter().filter(|i| i.category == *col).collect();
+                        (!items.is_empty()).then(|| Cell {
+                            text: items
+                                .iter()
+                                .map(|i| match i.qty {
+                                    1 => i.part.clone(),
+                                    q => format!("{q}× {}", i.part),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" + "),
+                            note: items.iter().find_map(|i| i.note.clone()),
+                        })
+                    })
+                    .collect()
+            })
+            .collect();
+        Some(SelectionTable { columns, rows })
+    }
 }
 
 // ─── JSON ───────────────────────────────────────────────────────────────────
@@ -199,6 +265,47 @@ pub fn selection_to_json(brand: usize, chart: usize, motor: usize, opts: Options
     out
 }
 
+pub fn table_to_json(brand: usize, chart: usize, opts: Options) -> String {
+    let Some(table) = brands::BRANDS.get(brand).and_then(|b| b.selection_table(chart, opts)) else {
+        return r#"{"error":"Combinación fuera de la tabla"}"#.into();
+    };
+    let mut out = String::from(r#"{"columns":["#);
+    for (i, col) in table.columns.iter().enumerate() {
+        if i > 0 {
+            out.push(',');
+        }
+        json_str(&mut out, col);
+    }
+    out.push_str(r#"],"rows":["#);
+    for (r, row) in table.rows.iter().enumerate() {
+        if r > 0 {
+            out.push(',');
+        }
+        out.push('[');
+        for (c, cell) in row.iter().enumerate() {
+            if c > 0 {
+                out.push(',');
+            }
+            match cell {
+                None => out.push_str("null"),
+                Some(cell) => {
+                    out.push_str(r#"{"text":"#);
+                    json_str(&mut out, &cell.text);
+                    out.push_str(r#","note":"#);
+                    match &cell.note {
+                        Some(n) => json_str(&mut out, n),
+                        None => out.push_str("null"),
+                    }
+                    out.push('}');
+                }
+            }
+        }
+        out.push(']');
+    }
+    out.push_str("]}");
+    out
+}
+
 // ─── Interfaz WASM ──────────────────────────────────────────────────────────
 
 thread_local! {
@@ -240,6 +347,15 @@ pub extern "C" fn select(
     ))
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn table(brand: u32, chart: u32, starter: u32, extras: u32, coil: u32) -> *const u8 {
+    emit(table_to_json(
+        brand as usize,
+        chart as usize,
+        Options { starter: starter as usize, extras, coil: coil as usize },
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -249,6 +365,29 @@ mod tests {
         let cat = catalog_to_json();
         assert!(cat.starts_with(r#"[{"id":"abb","name":"ABB","starters":[{"id":"#));
         assert!(cat.contains(r#""motors":[{"hp":0.17,"kw":0.12,"amps":4}"#));
+    }
+
+    #[test]
+    fn tabla_de_seleccion() {
+        let abb = brands::BRANDS[0];
+        // tri440, termomagnético, reversible + auxiliar frontal + seccionador, bobina 120 V
+        let opts = Options { starter: 1, extras: 0b111, coil: 2 };
+        let t = abb.selection_table(3, opts).unwrap();
+        assert_eq!(t.rows.len(), abb.motors(3).len());
+        assert!(t.rows.iter().all(|r| r.len() == t.columns.len()));
+        let col = |name| t.columns.iter().position(|c| *c == name).unwrap();
+        assert_eq!(t.rows[0][col("Contactor")].as_ref().unwrap().text, "2× AF09-30-10-13");
+        assert_eq!(
+            t.rows[0][col("Contacto auxiliar")].as_ref().unwrap().text,
+            "2× CAL4-11 + 2× CA4-10"
+        );
+        assert!(t.rows.iter().any(|r| r[col("Relevador de sobrecarga")]
+            .as_ref()
+            .is_some_and(|c| c.note.is_some())));
+        let gm = abb.selection_table(0, Options { starter: 0, extras: 0, coil: 2 }).unwrap();
+        assert_eq!(gm.columns[..3], ["Guardamotor", "Unidad de disparo", "Kit de unión"]);
+        assert!(table_to_json(0, 3, opts).starts_with(r#"{"columns":["Interruptor termomagnético","#));
+        assert_eq!(table_to_json(0, 99, opts), r#"{"error":"Combinación fuera de la tabla"}"#);
     }
 
     #[test]

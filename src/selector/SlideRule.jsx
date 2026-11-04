@@ -28,6 +28,7 @@ function useIsVertical() {
 
 export default function SlideRule({
   brand, chart, table, index, onIndex, sideLabel, flipKey, onFlip, flipLabel, notes, coils, coil, onCoil,
+  extras, onToggleExtra,
 }) {
   const vertical = useIsVertical();
   const motors = chart.motors;
@@ -207,6 +208,28 @@ export default function SlideRule({
           </button>
         )}
       </div>
+
+      {extras?.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-1.5 md:justify-end">
+          <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
+            Opciones:
+          </span>
+          {extras.map((x, i) => (
+            <button
+              key={x.id}
+              role="checkbox"
+              aria-checked={x.active}
+              disabled={x.disabled}
+              title={x.title}
+              onClick={() => onToggleExtra(i)}
+              className={`rounded-md border-2 border-neutral-800 px-2 py-0.5 font-display text-xs font-bold transition disabled:cursor-not-allowed disabled:border-neutral-300 disabled:text-neutral-400
+                ${x.active ? "bg-neutral-800 text-white" : "bg-white text-neutral-900 enabled:hover:bg-neutral-100"}`}
+            >
+              {x.active ? "✓" : "+"} {x.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="mb-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>

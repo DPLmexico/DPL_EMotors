@@ -270,15 +270,20 @@ export default function MotorSelector({ core }) {
               coils={brand.coils}
               coil={coilIdx}
               onCoil={setCoilIdx}
+              extras={brand.extras.map((x, i) => {
+                const disabled = x.threePhaseOnly && phases !== 3;
+                return {
+                  id: x.id,
+                  label: x.label,
+                  disabled,
+                  title: disabled ? "Solo trifásico" : "",
+                  active: !disabled && Boolean(extrasMask & (1 << i)),
+                };
+              })}
+              onToggleExtra={(i) => setExtrasMask((m) => m ^ (1 << i))}
             />
 
-            <div className="space-y-3 rounded-xl border border-border-custom bg-surface p-4">
-              <div>
-                <FieldLabel>Extras</FieldLabel>
-                <div className="flex flex-wrap gap-1.5">{extrasChips}</div>
-              </div>
-              {addRow}
-            </div>
+            <div className="rounded-xl border border-border-custom bg-surface p-4">{addRow}</div>
           </>
         ) : (
         <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[20rem_minmax(0,1fr)]">

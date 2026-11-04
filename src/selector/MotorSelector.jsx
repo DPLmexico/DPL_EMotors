@@ -73,7 +73,7 @@ export default function MotorSelector({ core }) {
   useEffect(() => localStorage.setItem(STORAGE_VIEW, JSON.stringify(view)), [view]);
 
   // Modo de página: "selector" (paneles) o "regla" (regla de cartón deslizable).
-  const [mode, setMode] = useState(() => loadStored(STORAGE_MODE, "selector"));
+  const [mode, setMode] = useState(() => loadStored(STORAGE_MODE, "regla"));
   useEffect(() => localStorage.setItem(STORAGE_MODE, JSON.stringify(mode)), [mode]);
 
   // ── Tabla activa ──

@@ -174,11 +174,21 @@ fn bill_of_materials(chart: &ChartInfo, row: &MotorRow, opts: Options) -> Vec<It
                 format!("CONTACTOR ABB {} BOBINA {}", row.contactor, coil_def.label),
                 per_contactor,
             );
-            contactor_note = Some(format!(
-                "El catálogo no da código para {} con bobina {}; especificar al pedir.",
-                row.contactor,
-                coil_range.label()
-            ));
+            let available: Vec<_> = COILS
+                .iter()
+                .filter(|(_, r)| contactors::find(row.contactor).and_then(|c| c.code(*r)).is_some())
+                .map(|(d, _)| d.label)
+                .collect();
+            contactor_note = Some(if available.is_empty() {
+                format!("Sin código de bobina en catálogo para {}; especificar al pedir.", row.contactor)
+            } else {
+                format!(
+                    "{} no existe con bobina {}. Usar control a {}.",
+                    row.contactor,
+                    coil_range.label(),
+                    available.join(", ")
+                )
+            });
         }
     }
     push(
@@ -394,7 +404,10 @@ mod tests {
         let last = CHARTS[chart("tri220")].1.len() - 1;
         let c = contactor(&bom_coil("tri220", last, GUARDAMOTOR, 0, 0)).clone();
         assert_eq!(c.part, "AF580");
-        assert!(c.note.is_some());
+        assert_eq!(
+            c.note.as_deref(),
+            Some("AF580 no existe con bobina 24-60 V. Usar control a 120-127 V, 220-240 V, 440-480 V.")
+        );
         let rows = CHARTS[chart("tri440")].1;
         let af40 = rows.iter().position(|r| r.contactor == "AF40").unwrap();
         let c = contactor(&bom("tri440", af40, GUARDAMOTOR, 0)).clone();

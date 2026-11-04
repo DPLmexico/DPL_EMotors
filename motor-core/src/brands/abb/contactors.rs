@@ -6,7 +6,7 @@
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CoilRange {
-    /// 24–60 V (código -21 con Z en AF09Z…AF30Z, -11 sin Z en AF52…AF370).
+    /// 24–60 V (código -21 con Z en AF09Z…AF30Z, -11 sin Z en AF40…AF370).
     V24_60,
     /// 100–250 V (código -13).
     V100_250,
@@ -52,13 +52,13 @@ const fn row(
     ContactorRow { frame, v24_60, v100_250: Some(v100_250), v250_500: Some(v250_500) }
 }
 
-// AF40 se usa en las tablas de motores pero no aparece en la hoja del catálogo escaneada.
 pub const ROWS: &[ContactorRow] = &[
     row("AF09", Some("AF09Z-30-10-21"), "AF09-30-10-13", "AF09-30-10-14"),
     row("AF12", Some("AF12Z-30-10-21"), "AF12-30-10-13", "AF12-30-10-14"),
     row("AF16", Some("AF16Z-30-10-21"), "AF16-30-10-13", "AF16-30-10-14"),
     row("AF26", Some("AF26Z-30-00-21"), "AF26-30-00-13", "AF26-30-00-14"),
     row("AF30", Some("AF30Z-30-00-21"), "AF30-30-00-13", "AF30-30-00-14"),
+    row("AF40", Some("AF40-30-00-11"), "AF40-30-00-13", "AF40-30-00-14"),
     row("AF52", Some("AF52-30-00-11"), "AF52-30-00-13", "AF52-30-00-14"),
     row("AF65", Some("AF65-30-00-11"), "AF65-30-00-13", "AF65-30-00-14"),
     row("AF80", Some("AF80-30-00-11"), "AF80-30-00-13", "AF80-30-00-14"),

@@ -397,7 +397,8 @@ mod tests {
         assert!(c.note.is_some());
         let rows = CHARTS[chart("tri440")].1;
         let af40 = rows.iter().position(|r| r.contactor == "AF40").unwrap();
-        assert!(contactor(&bom("tri440", af40, GUARDAMOTOR, 0)).note.is_some());
+        let c = contactor(&bom("tri440", af40, GUARDAMOTOR, 0)).clone();
+        assert_eq!((c.part.as_str(), c.note), ("AF40-30-00-13", None));
     }
 
     #[test]
@@ -406,10 +407,7 @@ mod tests {
             .iter()
             .flat_map(|(_, rows)| rows.iter().map(|r| r.contactor))
             .filter(|f| contactors::find(f).is_none())
-            .collect::<std::collections::BTreeSet<_>>()
-            .into_iter()
             .collect();
-        // Pendiente: AF40 no viene en la hoja de catálogo escaneada.
-        assert_eq!(missing, ["AF40"]);
+        assert!(missing.is_empty(), "sin códigos de bobina: {missing:?}");
     }
 }

@@ -46,7 +46,8 @@ export default function MotorSelector({ core }) {
 
   const [entries, setEntries] = useState(() => loadStored(STORAGE_ENTRIES, []));
   const [proveedor, setProveedor] = useState(() => loadStored(STORAGE_PROVEEDOR, brand.name));
-  const [status, setStatus] = useState("");
+  // Mensaje breve junto a la acción que lo generó: "add" (agregar) o "list" (exportar).
+  const [status, setStatus] = useState(null);
 
   useEffect(() => localStorage.setItem(STORAGE_ENTRIES, JSON.stringify(entries)), [entries]);
   useEffect(() => localStorage.setItem(STORAGE_PROVEEDOR, JSON.stringify(proveedor)), [proveedor]);
@@ -121,75 +122,75 @@ export default function MotorSelector({ core }) {
     setLabel("");
     setCount(1);
     setEdits({ key: "", off: {}, qty: {} });
-    flash(`Motor agregado a la lista (${entries.length + 1})`);
+    flash("add", `Motor agregado a la lista (${entries.length + 1})`);
   };
 
-  const flash = (msg) => {
-    setStatus(msg);
-    setTimeout(() => setStatus((s) => (s === msg ? "" : s)), 2500);
+  const flash = (where, msg) => {
+    const next = { where, msg };
+    setStatus(next);
+    setTimeout(() => setStatus((s) => (s === next ? null : s)), 2500);
   };
 
   const onCopyJSON = async () => {
     try {
       await copyText(JSON.stringify(buildClipboardPayload(entries, proveedor.trim())));
-      flash("JSON copiado al portapapeles");
+      flash("list", "JSON copiado al portapapeles");
     } catch (err) {
-      flash(err.message);
+      flash("list", err.message);
     }
   };
 
   // ─── Render ─────────────────────────────────────────────────────────────
 
+  const notes = items.filter((it) => it.included && it.note);
+
   return (
-    <div className="min-h-screen bg-black p-4 font-body text-text-base md:p-6">
-      <div className="mx-auto max-w-3xl space-y-4">
+    <div className="min-h-screen bg-black p-3 font-body text-text-base md:p-4">
+      <div className="mx-auto max-w-6xl space-y-3">
 
         <Header />
 
-        {/* Panel de selección */}
-        <div className="rounded-xl border border-border-custom bg-surface p-5">
-          <div className="space-y-5">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-[20rem_minmax(0,1fr)]">
+
+          {/* Panel de selección */}
+          <div className="space-y-3 rounded-xl border border-border-custom bg-surface p-4">
             <SectionLabel>Datos del motor</SectionLabel>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {core.brands.length > 1 && (
-                <SelectField label="Marca" value={brandIdx} onChange={(v) => changeChart(Number(v), voltage, phases)}>
-                  {core.brands.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
-                </SelectField>
-              )}
+            {core.brands.length > 1 && (
+              <SelectField label="Marca" value={brandIdx} onChange={(v) => changeChart(Number(v), voltage, phases)}>
+                {core.brands.map((b, i) => <option key={b.id} value={i}>{b.name}</option>)}
+              </SelectField>
+            )}
+            <div className="grid grid-cols-2 gap-2">
               <SelectField label="Tensión" value={voltage} onChange={(v) => changeChart(brandIdx, v, phases)}>
                 {voltages.map((v) => <option key={v} value={v}>{v}</option>)}
               </SelectField>
               <div>
-                <label className="mb-1.5 block text-xs text-text-muted">Fases</label>
-                <div className="grid grid-cols-2 gap-2">
+                <FieldLabel>Fases</FieldLabel>
+                <div className="grid grid-cols-2 gap-1.5">
                   {[1, 3].map((p) => {
                     const available = phasesFor(voltage).includes(p);
                     return (
-                      <button
+                      <ChoiceButton
                         key={p}
+                        active={phases === p}
                         disabled={!available}
-                        onClick={() => changeChart(brandIdx, voltage, p)}
                         title={available ? "" : `No disponible en ${voltage}`}
-                        className={`rounded-lg border p-2 font-display text-xs font-semibold uppercase tracking-wider transition
-                          ${phases === p
-                            ? "border-green bg-green/10 text-green"
-                            : "border-border-custom bg-surface2 text-text-muted enabled:hover:border-green-dim enabled:hover:text-text-base"}
-                          disabled:cursor-not-allowed disabled:opacity-35`}
+                        onClick={() => changeChart(brandIdx, voltage, p)}
                       >
-                        {p === 1 ? "1φ Mono" : "3φ Tri"}
-                      </button>
+                        {p === 1 ? "1φ" : "3φ"}
+                      </ChoiceButton>
                     );
                   })}
                 </div>
               </div>
-              <SelectField label="Potencia" value={motorIdx} onChange={(v) => setMotorIdx(Number(v))}>
-                {chart.motors.map((m, i) => <option key={i} value={i}>{fmtMotor(m)}</option>)}
-              </SelectField>
             </div>
+            <SelectField label="Potencia" value={motorIdx} onChange={(v) => setMotorIdx(Number(v))}>
+              {chart.motors.map((m, i) => <option key={i} value={i}>{fmtMotor(m)}</option>)}
+            </SelectField>
 
             <SectionLabel>Arrancador</SectionLabel>
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <div className="grid gap-1.5">
               {brand.starters.map((s, i) => (
                 <ChoiceButton key={s.id} active={starterIdx === i} onClick={() => setStarterIdx(i)}>
                   {s.label}
@@ -197,52 +198,44 @@ export default function MotorSelector({ core }) {
               ))}
             </div>
             {brand.coils.length > 0 && (
-              <div className="md:w-1/2 md:pr-1">
-                <SelectField label="Voltaje de control (bobina del contactor)" value={coilIdx} onChange={(v) => setCoilIdx(Number(v))}>
-                  {brand.coils.map((c, i) => <option key={c.id} value={i}>{c.label}</option>)}
-                </SelectField>
-              </div>
+              <SelectField label="Voltaje de control (bobina)" value={coilIdx} onChange={(v) => setCoilIdx(Number(v))}>
+                {brand.coils.map((c, i) => <option key={c.id} value={i}>{c.label}</option>)}
+              </SelectField>
             )}
-            <div className="flex flex-wrap gap-x-5 gap-y-2">
+            <div className="flex flex-wrap gap-1.5">
               {brand.extras.map((x, i) => {
                 const disabled = x.threePhaseOnly && phases !== 3;
                 return (
-                  <label
+                  <ToggleChip
                     key={x.id}
-                    className={`flex items-center gap-2 text-sm ${disabled ? "cursor-not-allowed text-text-muted/50" : "cursor-pointer text-text-base"}`}
+                    active={!disabled && Boolean(extrasMask & (1 << i))}
+                    disabled={disabled}
                     title={disabled ? "Solo trifásico" : ""}
+                    onClick={() => setExtrasMask((m) => m ^ (1 << i))}
                   >
-                    <input
-                      type="checkbox"
-                      className="size-4 accent-green"
-                      disabled={disabled}
-                      checked={!disabled && Boolean(extrasMask & (1 << i))}
-                      onChange={() => setExtrasMask((m) => m ^ (1 << i))}
-                    />
                     {x.label}
-                  </label>
+                  </ToggleChip>
                 );
               })}
             </div>
           </div>
-        </div>
 
-        {/* Resultado */}
-        <div className="rounded-xl border border-border-custom bg-surface p-5">
-          <div className="space-y-5">
-            <SectionLabel>Componentes — {brand.name} · {chart.label}</SectionLabel>
-
-            {motor && (
-              <div className="grid grid-cols-3 gap-3">
-                <ResultCard title="Potencia" value={motor.hp} unit="HP" />
-                <ResultCard title="Potencia" value={motor.kw} unit="kW" />
-                <ResultCard title="Corriente nominal" value={motor.amps} unit="A" />
-              </div>
-            )}
+          {/* Resultado */}
+          <div className="flex flex-col rounded-xl border border-border-custom bg-surface p-4">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border-custom pb-2">
+              <span className="font-display text-xs font-bold uppercase tracking-widest text-text-muted">
+                Componentes — {brand.name} · {chart.label}
+              </span>
+              {motor && (
+                <span className="font-display text-lg font-bold leading-none text-green">
+                  {motor.hp}<Unit>HP</Unit> · {motor.kw}<Unit>kW</Unit> · {motor.amps}<Unit>A</Unit>
+                </span>
+              )}
+            </div>
 
             <ErrorCard error={result.error} />
 
-            <div className="space-y-2">
+            <div className="mt-1 flex-1 divide-y divide-border-custom/60">
               {items.map((it, i) => (
                 <ComponentRow
                   key={`${selKey}-${i}`}
@@ -253,19 +246,31 @@ export default function MotorSelector({ core }) {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_8rem]">
-              <TextInput label="Identificador (opcional)" value={label} onChange={setLabel} placeholder="p. ej. Bomba de agua 1" />
-              <NumberInput label="Motores iguales" value={count} onChange={(v) => setCount(Math.max(1, Math.round(v) || 1))} min={1} step={1} unit="pza" />
-            </div>
-          </div>
+            {notes.length > 0 && (
+              <div className="mt-2 space-y-0.5 rounded border border-amber-500/40 bg-amber-900/20 px-2 py-1.5 text-xs text-amber-300">
+                {notes.map((it) => <div key={it.part}>⚠ <b>{it.part}:</b> {it.note}</div>)}
+              </div>
+            )}
 
-          <button
-            onClick={addToList}
-            disabled={!selectedItems.length}
-            className="mt-5 w-full rounded-lg border border-green bg-green/10 py-2 font-display text-sm font-semibold uppercase tracking-wider text-green transition hover:bg-green/20 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            + Agregar a lista de materiales
-          </button>
+            <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-border-custom pt-3">
+              <div className="min-w-40 flex-1">
+                <TextInput label="Identificador (opcional)" value={label} onChange={setLabel} placeholder="p. ej. Bomba de agua 1" />
+              </div>
+              <div className="w-24">
+                <NumberInput label="Motores" value={count} onChange={(v) => setCount(Math.max(1, Math.round(v) || 1))} min={1} step={1} unit="×" />
+              </div>
+              <button
+                onClick={addToList}
+                disabled={!selectedItems.length}
+                className="h-[34px] rounded-lg border border-green bg-green/10 px-4 font-display text-sm font-semibold uppercase tracking-wider text-green transition hover:bg-green/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                + Agregar a la lista
+              </button>
+            </div>
+            {status?.where === "add" && (
+              <p className="mt-2 font-display text-xs uppercase tracking-widest text-green">{status.msg}</p>
+            )}
+          </div>
         </div>
 
         {/* Lista de materiales */}
@@ -274,16 +279,13 @@ export default function MotorSelector({ core }) {
             entries={entries}
             proveedor={proveedor}
             setProveedor={setProveedor}
-            status={status}
+            status={status?.where === "list" ? status.msg : ""}
             onCount={(id, n) => setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, count: n } : e)))}
             onRemove={(id) => setEntries((prev) => prev.filter((e) => e.id !== id))}
             onClear={() => setEntries([])}
             onExportPDF={() => exportPDF(entries, proveedor.trim())}
             onCopyJSON={onCopyJSON}
           />
-        )}
-        {entries.length === 0 && status && (
-          <p className="text-center font-display text-xs uppercase tracking-widest text-green">{status}</p>
         )}
 
         <Footer />
@@ -296,22 +298,22 @@ export default function MotorSelector({ core }) {
 
 function Header() {
   return (
-    <header className="rounded-xl border border-border-custom bg-surface p-5">
-      <div className="flex items-center justify-between gap-4">
-        <a href={MAIN_SITE_URL} aria-label="Volver a DPL México" className="shrink-0">
-          <img src={`${import.meta.env.BASE_URL}dpl-logo.png`} alt="DPL México" className="h-7 w-auto" />
-        </a>
-        <a
-          href={MAIN_SITE_URL}
-          className="font-display text-xs font-semibold uppercase tracking-widest text-text-muted transition hover:text-green"
-        >
-          ← Volver al sitio
-        </a>
+    <header className="flex items-center gap-4 rounded-xl border border-border-custom bg-surface px-4 py-3">
+      <a href={MAIN_SITE_URL} aria-label="Volver a DPL México" className="shrink-0">
+        <img src={`${import.meta.env.BASE_URL}dpl-logo.png`} alt="DPL México" className="h-6 w-auto" />
+      </a>
+      <div className="min-w-0 flex-1">
+        <h1 className="font-display text-lg font-bold uppercase leading-tight tracking-wide text-green md:text-xl">
+          Selector de Componentes para Motores
+        </h1>
+        <p className="hidden text-xs text-text-muted sm:block">Arrancadores y protecciones de motores 60 Hz — v1.0</p>
       </div>
-      <h1 className="mt-4 font-display text-2xl font-bold uppercase tracking-wide text-green">
-        Selector de Componentes para Motores
-      </h1>
-      <p className="mt-1 text-sm text-text-muted">Arrancadores y protecciones de motores 60 Hz — v1.0</p>
+      <a
+        href={MAIN_SITE_URL}
+        className="hidden shrink-0 font-display text-xs font-semibold uppercase tracking-widest text-text-muted transition hover:text-green sm:block"
+      >
+        ← Volver al sitio
+      </a>
     </header>
   );
 }
@@ -319,7 +321,7 @@ function Header() {
 function Footer() {
   const year = new Date().getFullYear();
   return (
-    <footer className="rounded-xl border border-border-custom bg-surface p-5 text-center">
+    <footer className="px-4 py-2 text-center">
       <p className="text-xs leading-relaxed text-text-muted">
         © {year} DPL México. Selección basada en tablas del fabricante — verifica siempre contra los datos
         de placa del motor y la normativa vigente (NOM) antes de comprar o instalar.
@@ -341,39 +343,36 @@ function Footer() {
 function ComponentRow({ item, onToggle, onQty }) {
   return (
     <div
-      className={`flex items-start gap-3 rounded-lg border p-3 transition
-        ${item.included ? "border-border-custom bg-surface2" : "border-border-custom/50 bg-surface2/40 opacity-50"}`}
+      className={`flex items-center gap-3 py-1.5 transition ${item.included ? "" : "opacity-40"}`}
+      title={item.description}
     >
       <input
         type="checkbox"
-        className="mt-1 size-4 shrink-0 accent-green"
+        className="size-4 shrink-0 accent-green"
         checked={item.included}
         onChange={onToggle}
         aria-label={`Incluir ${item.part}`}
       />
-      <div className="min-w-0 flex-1">
-        <div className="font-display text-[11px] uppercase tracking-widest text-text-muted">{item.category}</div>
-        <div className="font-display text-lg font-bold leading-tight text-green">{item.part}</div>
-        <div className="text-xs text-text-muted">{item.description}</div>
-        {item.note && (
-          <div className="mt-1.5 rounded border border-amber-500/40 bg-amber-900/20 px-2 py-1 text-xs text-amber-300">
-            ⚠ {item.note}
-          </div>
-        )}
+      <span className="hidden w-40 shrink-0 truncate font-display text-[11px] uppercase tracking-widest text-text-muted sm:block">
+        {item.category}
+      </span>
+      <div className="min-w-0 flex-1 md:flex md:items-baseline md:gap-3">
+        <div className="shrink-0 font-display text-base font-bold leading-tight text-green md:w-40">
+          {item.part}{item.note && <span className="ml-1 text-amber-400" title={item.note}>⚠</span>}
+        </div>
+        <div className="truncate text-xs text-text-muted">{item.description}</div>
       </div>
-      <div className="w-20 shrink-0">
-        <input
-          type="number"
-          min={0}
-          step={1}
-          value={item.qty}
-          disabled={!item.included}
-          onChange={(e) => onQty(Math.round(Number(e.target.value)) || 0)}
-          className="w-full rounded-lg border border-border-custom bg-black/30 p-1.5 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none text-sm text-text-base outline-none transition focus:border-green-dim focus:ring-2 focus:ring-green-soft"
-          aria-label={`Cantidad de ${item.part}`}
-        />
-        <div className="mt-0.5 text-right text-[10px] uppercase text-text-muted">{item.unit}</div>
-      </div>
+      <input
+        type="number"
+        min={0}
+        step={1}
+        value={item.qty}
+        disabled={!item.included}
+        onChange={(e) => onQty(Math.round(Number(e.target.value)) || 0)}
+        className="w-12 shrink-0 rounded-md border border-border-custom bg-black/30 px-1.5 py-1 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none text-sm text-text-base outline-none transition focus:border-green-dim focus:ring-2 focus:ring-green-soft"
+        aria-label={`Cantidad de ${item.part}`}
+      />
+      <span className="w-7 shrink-0 text-[10px] uppercase text-text-muted">{item.unit}</span>
     </div>
   );
 }
@@ -474,37 +473,64 @@ function MaterialsPanel({ entries, proveedor, setProveedor, status, onCount, onR
 
 function SectionLabel({ children }) {
   return (
-    <div className="font-display text-xs font-bold uppercase tracking-widest text-text-muted border-b border-border-custom pb-2">
+    <div className="font-display text-xs font-bold uppercase tracking-widest text-text-muted border-b border-border-custom pb-1.5">
       {children}
     </div>
   );
 }
 
+function FieldLabel({ children }) {
+  return <label className="mb-1 block text-xs text-text-muted">{children}</label>;
+}
+
+function Unit({ children }) {
+  return <span className="ml-0.5 text-xs font-normal text-text-muted">{children}</span>;
+}
+
+const FIELD = "w-full rounded-lg border border-border-custom bg-surface2 px-2 py-1.5 text-sm text-text-base outline-none transition focus:border-green-dim focus:ring-2 focus:ring-green-soft";
+
 function SelectField({ label, value, onChange, children }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs text-text-muted">{label}</label>
-      <select
-        className="w-full rounded-lg border border-border-custom bg-surface2 p-2 text-sm text-text-base outline-none transition focus:border-green-dim focus:ring-2 focus:ring-green-soft"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      >
+      <FieldLabel>{label}</FieldLabel>
+      <select className={FIELD} value={value} onChange={(e) => onChange(e.target.value)}>
         {children}
       </select>
     </div>
   );
 }
 
-function ChoiceButton({ active, onClick, children }) {
+function ChoiceButton({ active, onClick, disabled, title, children }) {
   return (
     <button
       onClick={onClick}
-      className={`rounded-lg border px-3 py-2 font-display text-xs font-semibold uppercase tracking-wider transition
+      disabled={disabled}
+      title={title}
+      className={`h-[34px] rounded-lg border px-3 font-display text-xs font-semibold uppercase tracking-wider transition
         ${active
           ? "border-green bg-green/10 text-green"
-          : "border-border-custom bg-surface2 text-text-muted hover:border-green-dim hover:text-text-base"}`}
+          : "border-border-custom bg-surface2 text-text-muted enabled:hover:border-green-dim enabled:hover:text-text-base"}
+        disabled:cursor-not-allowed disabled:opacity-35`}
     >
       {children}
+    </button>
+  );
+}
+
+function ToggleChip({ active, onClick, disabled, title, children }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-pressed={active}
+      className={`rounded-full border px-2.5 py-1 text-xs transition
+        ${active
+          ? "border-green bg-green/10 text-green"
+          : "border-border-custom bg-surface2 text-text-muted enabled:hover:border-green-dim enabled:hover:text-text-base"}
+        disabled:cursor-not-allowed disabled:opacity-35`}
+    >
+      {active ? "✓ " : "+ "}{children}
     </button>
   );
 }
@@ -512,9 +538,9 @@ function ChoiceButton({ active, onClick, children }) {
 function TextInput({ label, value, onChange, placeholder }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs text-text-muted">{label}</label>
+      <FieldLabel>{label}</FieldLabel>
       <input
-        className="w-full rounded-lg border border-border-custom bg-surface2 p-2 text-sm text-text-base outline-none transition placeholder:text-text-muted/50 focus:border-green-dim focus:ring-2 focus:ring-green-soft"
+        className={`${FIELD} placeholder:text-text-muted/50`}
         type="text"
         value={value}
         placeholder={placeholder}
@@ -527,10 +553,10 @@ function TextInput({ label, value, onChange, placeholder }) {
 function NumberInput({ label, value, onChange, unit, min = 0, max, step = 0.1 }) {
   return (
     <div>
-      <label className="mb-1.5 block text-xs text-text-muted">{label}</label>
+      <FieldLabel>{label}</FieldLabel>
       <div className="flex">
         <input
-          className="w-full rounded-l-lg border border-border-custom bg-surface2 p-2 text-sm text-text-base outline-none transition focus:border-green-dim focus:ring-2 focus:ring-green-soft"
+          className={`${FIELD} rounded-r-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none`}
           type="number"
           value={value}
           min={min}
@@ -539,7 +565,7 @@ function NumberInput({ label, value, onChange, unit, min = 0, max, step = 0.1 })
           onChange={(e) => onChange(Number(e.target.value))}
         />
         {unit && (
-          <span className="flex items-center rounded-r-lg border border-l-0 border-border-custom bg-surface2 px-3 font-display text-xs font-semibold text-green">
+          <span className="flex items-center rounded-r-lg border border-l-0 border-border-custom bg-surface2 px-2 font-display text-xs font-semibold text-green">
             {unit}
           </span>
         )}
@@ -548,22 +574,10 @@ function NumberInput({ label, value, onChange, unit, min = 0, max, step = 0.1 })
   );
 }
 
-function ResultCard({ title, value, unit }) {
-  return (
-    <div className="rounded-xl border border-border-custom bg-surface2 p-4">
-      <div className="mb-1 font-display text-xs uppercase tracking-widest text-text-muted">{title}</div>
-      <div className="font-display text-3xl font-bold text-green md:text-4xl">
-        {Number.isFinite(value) ? value : "—"}
-        {unit && <span className="ml-1 text-base font-normal text-text-muted">{unit}</span>}
-      </div>
-    </div>
-  );
-}
-
 function ErrorCard({ error }) {
   if (!error) return null;
   return (
-    <div className="col-span-full rounded-lg border border-red-500 bg-red-900/20 p-3 text-sm text-red-400">
+    <div className="mt-2 rounded-lg border border-red-500 bg-red-900/20 p-2 text-sm text-red-400">
       {error}
     </div>
   );

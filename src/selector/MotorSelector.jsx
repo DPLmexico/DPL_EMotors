@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { buildClipboardPayload, consolidate, copyText, exportPDF, motorSummary } from "../logic/materials";
+import { buildClipboardPayload, consolidate, copyText, exportCSV, exportCSVDetail, exportPDF, motorSummary } from "../logic/materials";
 
 // ─── Constantes de configuración ────────────────────────────────────────────
 
@@ -284,6 +284,8 @@ export default function MotorSelector({ core }) {
             onRemove={(id) => setEntries((prev) => prev.filter((e) => e.id !== id))}
             onClear={() => setEntries([])}
             onExportPDF={() => exportPDF(entries, proveedor.trim())}
+            onExportCSV={() => exportCSV(entries)}
+            onExportCSVDetail={() => exportCSVDetail(entries)}
             onCopyJSON={onCopyJSON}
           />
         )}
@@ -379,7 +381,7 @@ function ComponentRow({ item, onToggle, onQty }) {
 
 // ─── Panel lista de materiales ────────────────────────────────────────────────
 
-function MaterialsPanel({ entries, proveedor, setProveedor, status, onCount, onRemove, onClear, onExportPDF, onCopyJSON }) {
+function MaterialsPanel({ entries, proveedor, setProveedor, status, onCount, onRemove, onClear, onExportPDF, onExportCSV, onExportCSVDetail, onCopyJSON }) {
   const total = consolidate(entries);
   return (
     <div className="rounded-xl border border-border-custom bg-surface p-5">
@@ -387,7 +389,9 @@ function MaterialsPanel({ entries, proveedor, setProveedor, status, onCount, onR
         <h2 className="font-display text-sm font-bold uppercase tracking-widest text-green">
           Lista de materiales ({entries.length} {entries.length === 1 ? "motor" : "motores"})
         </h2>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <ExportButton onClick={onExportCSV} label="↓ CSV" title="Lista consolidada para Excel" />
+          <ExportButton onClick={onExportCSVDetail} label="↓ CSV detalle" title="Una fila por componente de cada motor" />
           <ExportButton onClick={onExportPDF} label="↓ PDF" />
           <ExportButton onClick={onCopyJSON} label="⧉ Copiar JSON" />
           <button
@@ -583,10 +587,11 @@ function ErrorCard({ error }) {
   );
 }
 
-function ExportButton({ onClick, label }) {
+function ExportButton({ onClick, label, title }) {
   return (
     <button
       onClick={onClick}
+      title={title}
       className="rounded-lg border border-green px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-wider text-green transition hover:bg-green/10"
     >
       {label}

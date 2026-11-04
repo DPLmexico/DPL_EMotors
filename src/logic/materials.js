@@ -61,6 +61,72 @@ export async function copyText(text) {
   if (!ok) throw new Error("No se pudo copiar al portapapeles");
 }
 
+// ─── CSV ────────────────────────────────────────────────────────────────────
+// Solo datos, sin marca: pensado para abrirse directo en Excel (BOM UTF-8 para acentos,
+// separador coma y fin de línea CRLF).
+
+function csvCell(v) {
+  const s = String(v ?? "");
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadCSV(name, header, rows) {
+  const text = [header, ...rows].map((r) => r.map(csvCell).join(",")).join("\r\n");
+  const blob = new Blob(["\uFEFF" + text + "\r\n"], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${name}_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Lista de compra: una fila por número de catálogo. */
+export function exportCSV(entries) {
+  if (!entries.length) return;
+  downloadCSV(
+    "lista_materiales_motores",
+    ["Partida", "Marca", "No. catálogo", "Descripción", "Unidad", "Cantidad"],
+    consolidate(entries).map((it, i) => [i + 1, it.brand.toUpperCase(), it.part, it.description, it.unit, it.qty]),
+  );
+}
+
+/** Una fila por componente de cada motor, para filtrar o hacer tablas dinámicas. */
+export function exportCSVDetail(entries) {
+  if (!entries.length) return;
+  const rows = entries.flatMap((e, idx) =>
+    e.items.map((it) => [
+      idx + 1,
+      e.label,
+      e.brandName,
+      e.chartLabel,
+      e.motor.hp,
+      e.motor.kw,
+      e.motor.amps,
+      e.starterLabel,
+      e.coilLabel ?? "",
+      e.extras.join(" + "),
+      e.count,
+      it.category,
+      it.part,
+      it.description,
+      it.unit,
+      it.qty,
+      it.qty * e.count,
+      it.note ?? "",
+    ]),
+  );
+  downloadCSV(
+    "detalle_motores",
+    [
+      "Motor", "Identificador", "Marca", "Tabla", "HP", "kW", "A", "Arranque", "Control (bobina)",
+      "Extras", "Motores iguales", "Componente", "No. catálogo", "Descripción", "Unidad",
+      "Cant. por motor", "Cant. total", "Nota",
+    ],
+    rows,
+  );
+}
+
 // ─── PDF ────────────────────────────────────────────────────────────────────
 
 const GREEN = [0, 184, 95];

@@ -209,28 +209,6 @@ export default function SlideRule({
         )}
       </div>
 
-      {extras?.length > 0 && (
-        <div className="mb-2 flex flex-wrap items-center gap-1.5 md:justify-end">
-          <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
-            Opciones:
-          </span>
-          {extras.map((x, i) => (
-            <button
-              key={x.id}
-              role="checkbox"
-              aria-checked={x.active}
-              disabled={x.disabled}
-              title={x.title}
-              onClick={() => onToggleExtra(i)}
-              className={`rounded-md border-2 border-neutral-800 px-2 py-0.5 font-display text-xs font-bold transition disabled:cursor-not-allowed disabled:border-neutral-300 disabled:text-neutral-400
-                ${x.active ? "bg-neutral-800 text-white" : "bg-white text-neutral-900 enabled:hover:bg-neutral-100"}`}
-            >
-              {x.active ? "✓" : "+"} {x.label}
-            </button>
-          ))}
-        </div>
-      )}
-
       <div className="mb-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>
           <div className="font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
@@ -266,6 +244,28 @@ export default function SlideRule({
         {strip}
         {windows}
       </div>
+
+      {extras?.length > 0 && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5 md:justify-end">
+          <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
+            Opciones:
+          </span>
+          {extras.map((x, i) => (
+            <button
+              key={x.id}
+              role="checkbox"
+              aria-checked={x.active}
+              disabled={x.disabled}
+              title={x.title}
+              onClick={() => onToggleExtra(i)}
+              className={`rounded-md border-2 border-neutral-800 px-2 py-0.5 font-display text-xs font-bold transition disabled:cursor-not-allowed disabled:border-neutral-300 disabled:text-neutral-400
+                ${x.active ? "bg-neutral-800 text-white" : "bg-white text-neutral-900 enabled:hover:bg-neutral-100"}`}
+            >
+              {x.active ? "✓" : "+"} {x.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {notes?.length > 0 && (
         <div className="mt-3 space-y-0.5 rounded border border-amber-500/60 bg-amber-50 px-2 py-1.5 text-xs text-amber-800">

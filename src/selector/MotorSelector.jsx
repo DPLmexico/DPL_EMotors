@@ -253,15 +253,17 @@ export default function MotorSelector({ core }) {
               onFlip={brand.starters.length > 1 ? () => setStarterIdx(nextStarter) : null}
               flipLabel={brand.starters[nextStarter].label.split(" ")[0]}
               notes={notes}
+              coils={brand.coils}
+              coil={coilIdx}
+              onCoil={setCoilIdx}
             />
 
-            <div className="grid gap-3 rounded-xl border border-border-custom bg-surface p-4 md:grid-cols-[14rem_minmax(0,1fr)]">
-              {coilSelect}
+            <div className="space-y-3 rounded-xl border border-border-custom bg-surface p-4">
               <div>
                 <FieldLabel>Extras</FieldLabel>
                 <div className="flex flex-wrap gap-1.5">{extrasChips}</div>
               </div>
-              <div className="md:col-span-2">{addRow}</div>
+              {addRow}
             </div>
           </>
         ) : (

@@ -26,7 +26,9 @@ function useIsVertical() {
   return vertical;
 }
 
-export default function SlideRule({ chart, table, index, onIndex, sideLabel, flipKey, onFlip, flipLabel, notes }) {
+export default function SlideRule({
+  chart, table, index, onIndex, sideLabel, flipKey, onFlip, flipLabel, notes, coils, coil, onCoil,
+}) {
   const vertical = useIsVertical();
   const motors = chart.motors;
   const n = motors.length;
@@ -206,6 +208,26 @@ export default function SlideRule({ chart, table, index, onIndex, sideLabel, fli
           )}
         </div>
       </div>
+
+      {coils?.length > 0 && (
+        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Voltaje de control de la bobina">
+          <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
+            Bobina del contactor:
+          </span>
+          {coils.map((c, i) => (
+            <button
+              key={c.id}
+              role="radio"
+              aria-checked={coil === i}
+              onClick={() => onCoil(i)}
+              className={`rounded-md border-2 border-neutral-800 px-2 py-0.5 font-display text-xs font-bold transition
+                ${coil === i ? "bg-neutral-800 text-white" : "bg-white text-neutral-900 hover:bg-neutral-100"}`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className={vertical ? "flex gap-3" : "space-y-3"}>
         {strip}

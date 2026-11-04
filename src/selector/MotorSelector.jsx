@@ -257,11 +257,12 @@ export default function MotorSelector({ core }) {
             </div>
 
             <SlideRule
+              brand={brand}
               chart={chart}
               table={table}
               index={motorIdx}
               onIndex={setMotorIdx}
-              sideLabel={`${brand.name} · ${chart.label} · ${brand.starters[starterIdx].label}`}
+              sideLabel={`${chart.label} · ${brand.starters[starterIdx].label}`}
               flipKey={`${starterIdx}|${chartIdx}`}
               onFlip={brand.starters.length > 1 ? () => setStarterIdx(nextStarter) : null}
               flipLabel={brand.starters[nextStarter].label.split(" ")[0]}
@@ -350,7 +351,8 @@ export default function MotorSelector({ core }) {
                   ))}
                 </div>
                 <span className="font-display text-xs font-bold uppercase tracking-widest text-text-muted">
-                  {brand.name} · {chart.label}
+                  <span className="mr-1.5 align-middle text-2xl leading-none" style={{ color: brand.color }}>{brand.name}</span>
+                  {chart.label}
                 </span>
               </div>
               {motor && (
@@ -375,6 +377,7 @@ export default function MotorSelector({ core }) {
               </div>
             ) : (
               <SelectionSheet
+                brand={brand}
                 table={table}
                 chart={chart}
                 selected={motorIdx}
@@ -521,7 +524,7 @@ function ComponentRow({ item, onToggle, onQty }) {
 
 // ─── Tabla de selección (estilo hoja de proveedor) ────────────────────────────
 
-function SelectionSheet({ table, chart, selected, onSelect, subtitle }) {
+function SelectionSheet({ brand, table, chart, selected, onSelect, subtitle }) {
   const selectedRef = useRef(null);
   useEffect(() => {
     selectedRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -541,6 +544,12 @@ function SelectionSheet({ table, chart, selected, onSelect, subtitle }) {
           </div>
           <div className="truncate text-[11px] text-neutral-600">{subtitle}</div>
         </div>
+        <span
+          className="ml-auto shrink-0 font-display text-3xl font-bold uppercase leading-none tracking-tight"
+          style={{ color: brand.color }}
+        >
+          {brand.name}
+        </span>
       </div>
       <div className="max-h-[calc(100vh-17rem)] min-h-64 overflow-auto">
         <table className="w-full border-collapse text-xs">

@@ -27,7 +27,7 @@ function useIsVertical() {
 }
 
 export default function SlideRule({
-  chart, table, index, onIndex, sideLabel, flipKey, onFlip, flipLabel, notes, coils, coil, onCoil,
+  brand, chart, table, index, onIndex, sideLabel, flipKey, onFlip, flipLabel, notes, coils, coil, onCoil,
 }) {
   const vertical = useIsVertical();
   const motors = chart.motors;
@@ -186,7 +186,29 @@ export default function SlideRule({
 
   return (
     <div className="rounded-xl border-2 border-neutral-800 bg-surface p-3 shadow-[4px_4px_0_rgba(0,0,0,.25)] md:p-4">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+      {/* Marca de los componentes, bien visible */}
+      <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-2 border-b-2 border-neutral-800 pb-2">
+        <span
+          className="font-display text-5xl font-bold uppercase leading-none tracking-tight"
+          style={{ color: brand.color }}
+        >
+          {brand.name}
+        </span>
+        <div className="font-display text-xs font-bold uppercase leading-tight tracking-wider text-text-base">
+          Componentes marca <span style={{ color: brand.color }}>{brand.name}</span>
+          <div className="text-text-muted">{sideLabel}</div>
+        </div>
+        {onFlip && (
+          <button
+            onClick={onFlip}
+            className="ml-auto rounded-full border-2 border-neutral-800 bg-white px-3 py-1 font-display text-xs font-bold uppercase tracking-wider text-neutral-900 transition hover:bg-neutral-800 hover:text-white"
+          >
+            Voltear cartón → {flipLabel}
+          </button>
+        )}
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>
           <div className="font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
             ← Arrastra el cartón · rueda del mouse · flechas →
@@ -196,38 +218,26 @@ export default function SlideRule({
             <span className="text-sm text-text-muted">kW</span> · {motor.amps} <span className="text-sm text-text-muted">A</span>
           </div>
         </div>
-        <div className="text-right">
-          <div className="font-display text-xs font-bold uppercase tracking-wider text-text-base">{sideLabel}</div>
-          {onFlip && (
-            <button
-              onClick={onFlip}
-              className="mt-1 rounded-full border-2 border-neutral-800 bg-white px-3 py-1 font-display text-xs font-bold uppercase tracking-wider text-neutral-900 transition hover:bg-neutral-800 hover:text-white"
-            >
-              Voltear cartón → {flipLabel}
-            </button>
-          )}
-        </div>
+        {coils?.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Voltaje de control de la bobina">
+            <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
+              Bobina del contactor:
+            </span>
+            {coils.map((c, i) => (
+              <button
+                key={c.id}
+                role="radio"
+                aria-checked={coil === i}
+                onClick={() => onCoil(i)}
+                className={`rounded-md border-2 border-neutral-800 px-2 py-0.5 font-display text-xs font-bold transition
+                  ${coil === i ? "bg-neutral-800 text-white" : "bg-white text-neutral-900 hover:bg-neutral-100"}`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-
-      {coils?.length > 0 && (
-        <div className="mb-3 flex flex-wrap items-center gap-1.5" role="radiogroup" aria-label="Voltaje de control de la bobina">
-          <span className="mr-1 font-display text-[11px] font-bold uppercase tracking-widest text-text-muted">
-            Bobina del contactor:
-          </span>
-          {coils.map((c, i) => (
-            <button
-              key={c.id}
-              role="radio"
-              aria-checked={coil === i}
-              onClick={() => onCoil(i)}
-              className={`rounded-md border-2 border-neutral-800 px-2 py-0.5 font-display text-xs font-bold transition
-                ${coil === i ? "bg-neutral-800 text-white" : "bg-white text-neutral-900 hover:bg-neutral-100"}`}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className={vertical ? "flex gap-3" : "space-y-3"}>
         {strip}

@@ -85,6 +85,10 @@ pub struct SelectionTable {
 pub trait Brand: Sync {
     fn id(&self) -> &'static str;
     fn name(&self) -> &'static str;
+    /// Color con el que la UI escribe el nombre de la marca (CSS, p. ej. "#ff000f").
+    fn color(&self) -> &'static str {
+        "#151515"
+    }
     fn charts(&self) -> &'static [ChartInfo];
     fn motors(&self, chart: usize) -> Vec<Motor>;
     fn starters(&self) -> &'static [OptionDef];
@@ -197,6 +201,8 @@ pub fn catalog_to_json() -> String {
         json_str(&mut out, brand.id());
         out.push_str(r#","name":"#);
         json_str(&mut out, brand.name());
+        out.push_str(r#","color":"#);
+        json_str(&mut out, brand.color());
         out.push_str(r#","starters":"#);
         json_options(&mut out, brand.starters());
         out.push_str(r#","extras":"#);
@@ -363,7 +369,7 @@ mod tests {
     #[test]
     fn catalogo_incluye_marcas() {
         let cat = catalog_to_json();
-        assert!(cat.starts_with(r#"[{"id":"abb","name":"ABB","starters":[{"id":"#));
+        assert!(cat.starts_with(r##"[{"id":"abb","name":"ABB","color":"#ff000f","starters":[{"id":"##));
         assert!(cat.contains(r#""motors":[{"hp":0.17,"kw":0.12,"amps":4}"#));
     }
 

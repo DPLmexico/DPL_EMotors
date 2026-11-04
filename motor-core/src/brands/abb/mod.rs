@@ -259,6 +259,10 @@ impl Brand for Abb {
         "ABB"
     }
 
+    fn color(&self) -> &'static str {
+        "#ff000f"
+    }
+
     fn charts(&self) -> &'static [ChartInfo] {
         CHART_INFO
     }

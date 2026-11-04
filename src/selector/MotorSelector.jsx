@@ -27,6 +27,18 @@ function loadStored(key, fallback) {
   }
 }
 
+// Selección inicial: el caso más común, motor de 1 HP trifásico a 220 V.
+const DEFAULT_PHASES = 3;
+const DEFAULT_VOLTAGE = "220-240 V";
+const DEFAULT_HP = 1;
+
+function initialSelection(brand) {
+  const chart =
+    brand.charts.find((c) => c.phases === DEFAULT_PHASES && c.voltage === DEFAULT_VOLTAGE) ?? brand.charts[0];
+  const motor = chart.motors.findIndex((m) => m.hp === DEFAULT_HP);
+  return { chart, motor: Math.max(0, motor) };
+}
+
 const newId = () => crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 
 const fmtMotor = (m) => `${m.hp} HP  ·  ${m.kw} kW  ·  ${m.amps} A`;
@@ -37,12 +49,13 @@ export default function MotorSelector({ core }) {
   const [brandIdx, setBrandIdx] = useState(0);
   const brand = core.brands[brandIdx];
 
-  const [voltage, setVoltage] = useState(brand.charts[0].voltage);
-  const [phases, setPhases] = useState(brand.charts[0].phases);
-  const [motorIdx, setMotorIdx] = useState(0);
+  const [initial] = useState(() => initialSelection(brand));
+  const [voltage, setVoltage] = useState(initial.chart.voltage);
+  const [phases, setPhases] = useState(initial.chart.phases);
+  const [motorIdx, setMotorIdx] = useState(initial.motor);
   const [starterIdx, setStarterIdx] = useState(0);
   const [extrasMask, setExtrasMask] = useState(0);
-  const [coilIdx, setCoilIdx] = useState(brand.charts[0].defaultCoil);
+  const [coilIdx, setCoilIdx] = useState(initial.chart.defaultCoil);
   const [label, setLabel] = useState("");
   const [count, setCount] = useState(1);
   const [edits, setEdits] = useState({ key: "", off: {}, qty: {} });
